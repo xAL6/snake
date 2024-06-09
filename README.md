@@ -18,7 +18,7 @@ git clone https://github.com/xAL6/snake.git
 ## Compilation
 
 ```bash
-gcc -o snake_game snake_game.c -lSDL2 -lSDL2_ttf -lm
+gcc -o snake snake.c -lSDL2 -lSDL2_ttf -lm
 ```
 ## Running the Game
 
