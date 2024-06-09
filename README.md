@@ -10,7 +10,11 @@ Ensure you have the following dependencies installed:
 sudo apt update
 sudo apt install git libsdl2-dev libsdl2-ttf-dev
 ```
+## Cloning the Repository
 
+```
+git clone https://github.com/xAL6/snake.git
+```
 ## Compilation
 
 ```bash
