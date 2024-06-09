@@ -192,7 +192,7 @@ int main() {
         return 1;
     }
 
-    font = TTF_OpenFont("NotoSansCJKtc-Regular.ttf", 24);
+    font = TTF_OpenFont("FreeSans.ttf", 24);
     if (!font) {
         fprintf(stderr, "無法加載字體: %s\n", TTF_GetError());
         SDL_DestroyRenderer(renderer);
