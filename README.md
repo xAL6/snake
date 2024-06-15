@@ -14,6 +14,7 @@ sudo apt install git libsdl2-dev libsdl2-ttf-dev
 
 ```
 git clone https://github.com/xAL6/snake.git
+cd snake
 ```
 ## Compilation
 
