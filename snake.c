@@ -5,6 +5,7 @@
 #include <time.h>
 #include <stdbool.h>
 #include <math.h>
+
 #define WINDOW_WIDTH 640
 #define WINDOW_HEIGHT 480
 #define SNAKE_BLOCK_SIZE 20
@@ -13,7 +14,8 @@
 #define SNAKE_MAX_LENGTH 100
 
 typedef enum { UP, DOWN, LEFT, RIGHT } Direction;
-typedef enum { START, RUNNING, PAUSED, GAME_OVER } GameState;
+typedef enum { START, RUNNING, PAUSED, GAME_OVER, SELECT_DIFFICULTY } GameState;
+typedef enum { EASY, NORMAL, HARD } Difficulty;
 
 typedef struct {
     int x, y;
@@ -35,6 +37,7 @@ static Food food;
 static int gameDelay = 100;
 static int score = 0;
 static GameState gameState = START;
+static Difficulty gameDifficulty = NORMAL;
 static SDL_Window* window = NULL;
 static SDL_Renderer* renderer = NULL;
 static TTF_Font* font = NULL;
@@ -104,8 +107,17 @@ bool CheckForCollision() {
 
 void RenderText(const char* text, int x, int y) {
     SDL_Color white = {255, 255, 255, 255};
-    SDL_Surface* surface = TTF_RenderText_Solid(font, text, white);
+    SDL_Surface* surface = TTF_RenderUTF8_Blended(font, text, white);
+    if (!surface) {
+        fprintf(stderr, "Unable to render text surface: %s\n", TTF_GetError());
+        return;
+    }
     SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    if (!texture) {
+        fprintf(stderr, "Unable to create texture from rendered text: %s\n", SDL_GetError());
+        SDL_FreeSurface(surface);
+        return;
+    }
     SDL_Rect dstRect = {x, y, surface->w, surface->h};
     SDL_RenderCopy(renderer, texture, NULL, &dstRect);
     SDL_FreeSurface(surface);
@@ -116,10 +128,12 @@ void RenderGame() {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
     SDL_RenderClear(renderer);
 
+    // 繪製食物
     SDL_Rect foodRect = {food.position.x, food.position.y, FOOD_SIZE, FOOD_SIZE};
     SDL_SetRenderDrawColor(renderer, 255, 0, 0, SDL_ALPHA_OPAQUE);
     SDL_RenderFillRect(renderer, &foodRect);
 
+    // 繪製貪吃蛇
     for (int i = 0; i < snake.length; i++) {
         float fraction = (float)i / snake.length;
         int r = (int)(255 * fraction);
@@ -131,8 +145,9 @@ void RenderGame() {
         SDL_RenderFillRect(renderer, &snakeRect);
     }
 
+    // 顯示分數
     char scoreText[20];
-    sprintf(scoreText, "Score: %d", score);
+    sprintf(scoreText, "分數: %d", score);
     RenderText(scoreText, 10, 10);
 
     SDL_RenderPresent(renderer);
@@ -152,17 +167,82 @@ void UpdateDirectionFromInput(SDL_Event* event) {
 
 void HandleStartScreen(SDL_Event* event) {
     if (event->type == SDL_KEYDOWN) {
+        gameState = SELECT_DIFFICULTY;
+    }
+}
+
+void RenderStartScreen() {
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+    SDL_RenderClear(renderer);
+
+    const char* startText = "按任意鍵開始選擇難度";
+    int textWidth, textHeight;
+    TTF_SizeUTF8(font, startText, &textWidth, &textHeight);
+    RenderText(startText, (WINDOW_WIDTH - textWidth) / 2, (WINDOW_HEIGHT - textHeight) / 2);
+
+    SDL_RenderPresent(renderer);
+}
+
+void HandleDifficultySelection(SDL_Event* event) {
+    if (event->type == SDL_KEYDOWN) {
+        switch (event->key.keysym.sym) {
+            case SDLK_1: 
+                gameDifficulty = EASY; 
+                gameDelay = 200;
+                break;
+            case SDLK_2: 
+                gameDifficulty = NORMAL; 
+                gameDelay = 100;
+                break;
+            case SDLK_3: 
+                gameDifficulty = HARD; 
+                gameDelay = 50;
+                break;
+        }
+        InitializeSnake();
+        PlaceFood();
         gameState = RUNNING;
     }
+}
+
+void RenderDifficultySelection() {
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+    SDL_RenderClear(renderer);
+
+    const char* selectText = "選擇難度: 1.簡單 2.普通 3.困難";
+    int textWidth, textHeight;
+    TTF_SizeUTF8(font, selectText, &textWidth, &textHeight);
+    RenderText(selectText, (WINDOW_WIDTH - textWidth) / 2, (WINDOW_HEIGHT - textHeight) / 2);
+
+    SDL_RenderPresent(renderer);
 }
 
 void HandleGameOverScreen(SDL_Event* event) {
     if (event->type == SDL_KEYDOWN) {
         score = 0;
-        InitializeSnake();
-        PlaceFood();
-        gameState = RUNNING;
+        gameState = SELECT_DIFFICULTY;
     }
+}
+
+void RenderGameOverScreen() {
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+    SDL_RenderClear(renderer);
+
+    const char* gameOverText = "遊戲結束";
+    int textWidth, textHeight;
+    TTF_SizeUTF8(font, gameOverText, &textWidth, &textHeight);
+    RenderText(gameOverText, (WINDOW_WIDTH - textWidth) / 2, WINDOW_HEIGHT / 3);
+
+    char scoreText[20];
+    sprintf(scoreText, "分數: %d", score);
+    TTF_SizeUTF8(font, scoreText, &textWidth, &textHeight);
+    RenderText(scoreText, (WINDOW_WIDTH - textWidth) / 2, WINDOW_HEIGHT / 2);
+
+    const char* restartText = "按任意鍵重新開始";
+    TTF_SizeUTF8(font, restartText, &textWidth, &textHeight);
+    RenderText(restartText, (WINDOW_WIDTH - textWidth) / 2, 2 * WINDOW_HEIGHT / 3);
+
+    SDL_RenderPresent(renderer);
 }
 
 int main() {
@@ -192,7 +272,7 @@ int main() {
         return 1;
     }
 
-    font = TTF_OpenFont("FreeSans.ttf", 24);
+    font = TTF_OpenFont("NotoSansCJK-Regular.ttc", 24);
     if (!font) {
         fprintf(stderr, "無法加載字體: %s\n", TTF_GetError());
         SDL_DestroyRenderer(renderer);
@@ -203,8 +283,6 @@ int main() {
     }
 
     srand((unsigned)time(NULL));
-    InitializeSnake();
-    PlaceFood();
 
     bool quit = false;
     SDL_Event e;
@@ -216,6 +294,9 @@ int main() {
                 switch (gameState) {
                     case START:
                         HandleStartScreen(&e);
+                        break;
+                    case SELECT_DIFFICULTY:
+                        HandleDifficultySelection(&e);
                         break;
                     case RUNNING:
                         UpdateDirectionFromInput(&e);
@@ -239,26 +320,17 @@ int main() {
 
             ProcessMovement();
             if (CheckForCollision()) {
-                printf("遊戲結束\n分數: %d\n", score);
                 gameState = GAME_OVER;
             }
 
             RenderGame();
             SDL_Delay(gameDelay);
         } else if (gameState == START) {
-            SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
-            SDL_RenderClear(renderer);
-            RenderText("press any key to start", WINDOW_WIDTH / 4, WINDOW_HEIGHT / 2);
-            SDL_RenderPresent(renderer);
+            RenderStartScreen();
+        } else if (gameState == SELECT_DIFFICULTY) {
+            RenderDifficultySelection();
         } else if (gameState == GAME_OVER) {
-            SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
-            SDL_RenderClear(renderer);
-            RenderText("game over", WINDOW_WIDTH / 3, WINDOW_HEIGHT / 3);
-            char scoreText[20];
-            sprintf(scoreText, "score: %d", score);
-            RenderText(scoreText, WINDOW_WIDTH / 3, WINDOW_HEIGHT / 2);
-            RenderText("press any key to restart", WINDOW_WIDTH / 4, 2 * WINDOW_HEIGHT / 3);
-            SDL_RenderPresent(renderer);
+            RenderGameOverScreen();
         }
     }
 
